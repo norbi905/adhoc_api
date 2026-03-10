@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ArchViz Pixel Stream — API Flow v2</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0c10;
+    --surface: #111318;
+    --surface2: #181c24;
+    --border: #252a35;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --accent: #38bdf8;
+
+    --orbit: #f59e0b;
+    --unit: #10b981;
+    --walk: #8b5cf6;
+    --poi: #ef4444;
+    --floor: #06b6d4;
+    --init: #64748b;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 32px 48px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .logo { display: flex; flex-direction: column; gap: 4px; }
+  .logo-tag {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+  .logo-title {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+  .version-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    padding: 4px 10px;
+    background: rgba(56,189,248,0.08);
+    border: 1px solid rgba(56,189,248,0.25);
+    color: var(--accent);
+    border-radius: 4px;
+  }
+  .header-meta {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+    max-width: 420px;
+  }
+
+  /* ── Layout ── */
+  .main { display: flex; gap: 0; min-height: calc(100vh - 120px); }
+
+  /* ── Sidebar Legend ── */
+  .sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    padding: 28px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+  .sidebar-section-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text);
+    padding: 6px 0;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: color 0.15s;
+  }
+  .legend-item:hover { color: var(--accent); }
+  .legend-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  }
+  .msg-type {
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .msg-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    width: fit-content;
+  }
+  .badge-emit { background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.25); }
+  .badge-listen { background: rgba(139,92,246,0.12); color: #a78bfa; border: 1px solid rgba(139,92,246,0.25); }
+  .badge-event { background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.25); }
+
+  /* ── Flow Canvas ── */
+  .canvas {
+    flex: 1;
+    padding: 36px 40px;
+    overflow-x: auto;
+  }
+
+  /* ── State Machine Diagram ── */
+  .flow-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  .state-machine {
+    position: relative;
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    gap: 0;
+    margin-bottom: 48px;
+  }
+
+  /* Init node */
+  .init-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 12px;
+    padding-right: 20px;
+  }
+  .node-init {
+    background: var(--surface2);
+    border: 2px solid var(--border);
+    border-radius: 50%;
+    width: 72px; height: 72px;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column;
+    gap: 2px;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    position: relative;
+  }
+  .node-init:hover { border-color: var(--accent); box-shadow: 0 0 16px rgba(56,189,248,0.15); }
+  .node-init-label { font-size: 10px; font-family: 'Space Mono', monospace; color: var(--muted); margin-top: 8px; text-align: center; }
+
+  /* Mode nodes grid */
+  .modes-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, auto);
+    gap: 14px;
+  }
+
+  .mode-card {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+    position: relative;
+  }
+  .mode-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  .mode-card.active { border-color: var(--node-color); box-shadow: 0 0 0 1px var(--node-color), 0 8px 32px rgba(0,0,0,0.4); }
+
+  .mode-card-header {
+    padding: 14px 16px 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .mode-icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .mode-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.2;
+  }
+  .mode-subtitle {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 1px;
+  }
+  .mode-expand-icon {
+    margin-left: auto;
+    font-size: 14px;
+    color: var(--muted);
+    transition: transform 0.2s;
+  }
+  .mode-card.active .mode-expand-icon { transform: rotate(90deg); }
+
+  .mode-card-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.35s cubic-bezier(0.4,0,0.2,1);
+  }
+  .mode-card.active .mode-card-body { max-height: 600px; }
+  .mode-card-inner { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; }
+
+  .mode-desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* API calls inside card */
+  .api-section-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-top: 4px;
+    margin-bottom: 4px;
+  }
+  .api-call {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .api-call-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .api-method {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .method-emit { background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.2); }
+  .method-listen { background: rgba(139,92,246,0.12); color: #a78bfa; border: 1px solid rgba(139,92,246,0.2); }
+  .method-event { background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.2); }
+
+  .api-name {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--text);
+    word-break: break-all;
+  }
+  .api-desc { font-size: 11px; color: var(--muted); line-height: 1.4; padding-left: 2px; }
+
+  .api-payload {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 8px;
+    margin-top: 4px;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: #7dd3fc;
+    line-height: 1.5;
+    white-space: pre;
+    overflow-x: auto;
+  }
+
+  .transition-note {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--muted);
+    padding: 6px 8px;
+    background: var(--surface2);
+    border-radius: 5px;
+    border-left: 3px solid var(--node-color, var(--accent));
+  }
+
+  /* ── Transition Table ── */
+  .section-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    margin-top: 40px;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+  }
+
+  .transition-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .transition-table th {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .transition-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(37,42,53,0.6);
+    color: var(--text);
+    vertical-align: top;
+  }
+  .transition-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .from-badge, .to-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .arrow-cell { color: var(--muted); text-align: center; font-size: 16px; }
+
+  /* ── Pixel Stream Message Flow ── */
+  .flow-diagram {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 40px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+  .flow-actor {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    min-width: 120px;
+  }
+  .flow-actor-box {
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .flow-actor-box.vue { border-color: #42b883; color: #42b883; }
+  .flow-actor-box.ps { border-color: var(--accent); color: var(--accent); }
+  .flow-actor-box.ue { border-color: #f59e0b; color: #f59e0b; }
+  .flow-lifeline {
+    width: 2px;
+    height: 60px;
+    background: var(--border);
+    position: relative;
+  }
+  .flow-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    min-width: 80px;
+  }
+  .flow-arrow-line {
+    height: 2px;
+    width: 100%;
+    background: var(--border);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .flow-arrow-line::after {
+    content: '▶';
+    position: absolute;
+    right: -8px;
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .flow-arrow-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    margin-top: 4px;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  /* ── Connector visual between init and modes ── */
+  .connector-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 16px 0 8px;
+    overflow: visible;
+    position: relative;
+  }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { height: 4px; width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* responsive */
+  @media (max-width: 900px) {
+    .modes-grid { grid-template-columns: repeat(2, 1fr); }
+    .state-machine { grid-template-columns: 1fr; }
+    .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); flex-direction: row; flex-wrap: wrap; }
+  }
+  @media (max-width: 600px) {
+    .modes-grid { grid-template-columns: 1fr; }
+    header { padding: 20px; }
+    .canvas { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <span class="logo-tag">ArchViz · Pixel Stream</span>
+    <span class="logo-title">Application API Flow</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <span class="version-badge">v2.0.0</span>
+    <span style="font-size:12px;color:var(--muted);font-family:'Space Mono',monospace;">Vue ↔ PixelStream ↔ UE5</span>
+  </div>
+  <p class="header-meta">Click any mode card to expand its API calls, payload schemas, and transition rules. Use this as the reference for all Vue → UE5 messaging.</p>
+</header>
+
+<div class="main">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div>
+      <p class="sidebar-section-title">Application Modes</p>
+      <div class="legend-item" onclick="scrollToCard('orbit')"><span class="legend-dot" style="background:var(--orbit)"></span>Orbit Mode</div>
+      <div class="legend-item" onclick="scrollToCard('unit')"><span class="legend-dot" style="background:var(--unit)"></span>Unit View Mode</div>
+      <div class="legend-item" onclick="scrollToCard('walk')"><span class="legend-dot" style="background:var(--walk)"></span>Walking Mode</div>
+      <div class="legend-item" onclick="scrollToCard('poi')"><span class="legend-dot" style="background:var(--poi)"></span>POI Mode</div>
+      <div class="legend-item" onclick="scrollToCard('floor')"><span class="legend-dot" style="background:var(--floor)"></span>Floor Cutoff Mode</div>
+    </div>
+
+    <div>
+      <p class="sidebar-section-title">Message Types</p>
+      <div class="msg-type">
+        <span class="msg-badge badge-emit">EMIT</span>
+        <span style="font-size:11px;color:var(--muted)">Vue → UE5<br>Vue sends command</span>
+      </div>
+      <div class="msg-type" style="margin-top:8px">
+        <span class="msg-badge badge-listen">LISTEN</span>
+        <span style="font-size:11px;color:var(--muted)">UE5 → Vue<br>UE5 sends response</span>
+      </div>
+      <div class="msg-type" style="margin-top:8px">
+        <span class="msg-badge badge-event">EVENT</span>
+        <span style="font-size:11px;color:var(--muted)">UE5 → Vue<br>Async state update</span>
+      </div>
+    </div>
+
+    <div>
+      <p class="sidebar-section-title">Transport</p>
+      <span style="font-size:11px;color:var(--muted);line-height:1.6;">All messages sent via <span style="color:var(--accent);font-family:'Space Mono',monospace;">emitUIInteraction()</span> and received via <span style="color:var(--accent);font-family:'Space Mono',monospace;">addResponseEventListener()</span></span>
+    </div>
+  </aside>
+
+  <!-- Canvas -->
+  <main class="canvas">
+
+    <!-- Message transport overview -->
+    <p class="flow-title">// Pixel Stream Message Transport</p>
+    <div class="flow-diagram">
+      <div class="flow-actor">
+        <div class="flow-actor-box vue">Vue Frontend</div>
+      </div>
+      <div class="flow-arrow">
+        <div class="flow-arrow-line"></div>
+        <div class="flow-arrow-label">emitUIInteraction(payload)</div>
+      </div>
+      <div class="flow-actor">
+        <div class="flow-actor-box ps">Pixel Stream</div>
+      </div>
+      <div class="flow-arrow">
+        <div class="flow-arrow-line"></div>
+        <div class="flow-arrow-label">WS relay</div>
+      </div>
+      <div class="flow-actor">
+        <div class="flow-actor-box ue">UE5 App</div>
+      </div>
+      <div style="min-width:48px;text-align:center;color:var(--muted);font-size:20px;">⇄</div>
+      <div class="flow-actor">
+        <div class="flow-actor-box ue">UE5 App</div>
+      </div>
+      <div class="flow-arrow" style="flex-direction:row-reverse">
+        <div class="flow-arrow-line" style="transform:scaleX(-1)"></div>
+        <div class="flow-arrow-label" style="margin-top:4px;">sendPixelStreamResponse()</div>
+      </div>
+      <div class="flow-actor">
+        <div class="flow-actor-box ps">Pixel Stream</div>
+      </div>
+      <div class="flow-arrow" style="flex-direction:row-reverse">
+        <div class="flow-arrow-line" style="transform:scaleX(-1)"></div>
+        <div class="flow-arrow-label">addResponseEventListener()</div>
+      </div>
+      <div class="flow-actor">
+        <div class="flow-actor-box vue">Vue Frontend</div>
+      </div>
+    </div>
+
+    <!-- State Machine -->
+    <p class="flow-title">// Application Mode State Machine — click a card to expand</p>
+
+    <div class="state-machine">
+      <div class="init-node">
+        <div class="node-init" id="node-init" onclick="toggleInit()">
+          <span style="font-size:22px;">⬡</span>
+          <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--accent)">INIT</span>
+        </div>
+        <span class="node-init-label">App<br>Start</span>
+
+        <!-- Init API detail panel -->
+        <div id="init-panel" style="display:none;margin-top:12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;width:140px;">
+          <div class="api-section-label">On Connect</div>
+          <div class="api-call" style="margin-bottom:6px;">
+            <div class="api-call-row">
+              <span class="api-method method-emit">EMIT</span>
+              <span class="api-name">app.init</span>
+            </div>
+            <div class="api-payload">{ "action": "app.init",
+  "defaultMode": "orbit" }</div>
+          </div>
+          <div class="api-call">
+            <div class="api-call-row">
+              <span class="api-method method-listen">LISTEN</span>
+              <span class="api-name">app.ready</span>
+            </div>
+            <div class="api-desc">UE5 confirms scene loaded</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modes Grid -->
+      <div class="modes-grid">
+
+        <!-- ORBIT MODE -->
+        <div class="mode-card" id="card-orbit" style="--node-color: var(--orbit)" onclick="toggleCard('orbit')">
+          <div class="mode-card-header">
+            <div class="mode-icon" style="background:rgba(245,158,11,0.12);">🔄</div>
+            <div>
+              <div class="mode-name">Orbit Mode</div>
+              <div class="mode-subtitle">Camera orbits building</div>
+            </div>
+            <span class="mode-expand-icon">›</span>
+          </div>
+          <div class="mode-card-body">
+            <div class="mode-card-inner">
+              <p class="mode-desc">The camera rotates around the building exterior. User can adjust orbit speed, angle, and zoom. Default mode on application load.</p>
+
+              <div class="api-section-label">Activate</div>
+              <div class="api-call">
+                <div class="api-call-row">
+                  <span class="api-method method-emit">EMIT</span>
+                  <span class="api-name">camera.setMode</span>
+                </div>
+                <div class="api-payload">{ "action": "camera.setMode",
+  "mode": "orbit",
+  "targetActor": "Building_01",
+  "radius": 5000,
+  "height": 1200,
+  "speed": 0.3 }</div>
+              </div>
+
+              <div class="api-section-label">Controls</div>
+              <div class="api-call">
+                <div class="api-call-row">
+                  <span class="api-method method-emit">EMIT</span>
+                  <span class="api-name">orbit.setParams</span>
+                </div>
+                <div class="api-payload">{ "action": "orbit.setParams",
+  "speed": 0.5,
+  "radius": 4000,
+  "height": 800,
+  "autoRotate": true }</div>
+              </div>
+
+              <div class="api-section-label">Response</div>
+              <div class="api-call">
+                <div class="api-call-row">
+                  <span class="api-method method-listen">LISTEN</span>
+                  <span class="api-name">camera.modeChanged</span>
+                </div>
+                <div class="api-desc">UE5 confirms orbit mode active</div>
+                <div class="api-payload">{ "event": "camera.modeChanged",
+  "mode": "orbit",
+  "status": "active" }</div>
+              </div>
+
+              <div class="transition-note">
+                <span>↔</span> Can transition to: Unit View, Walking, POI
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- UNIT VIEW MODE -->
+        <div class="mode-card" id="card-unit" style="--node-color: var(--unit)" onclick="toggleCard('unit')">
+          <div class="mode-card-header">
+            <div class="mode-icon" style="background:rgba(16,185,129,0.12);">🏢</div>
+            <div>
+              <div class="mode-name">Unit View Mode</div>
+              <div class="mode-subtitle">Browse & filter units</div>
+            </div>
+            <span class="mode-expand-icon">›</span>
+          </div>
+          <div class="mode-card-body">
+            <div class="mode-card-inner">
+              <p class="mode-desc">Displays all condo units as interactive 3D boxes on the building. Supports filtering by availability, price range, and number of bedrooms. Works together with Floor Cutoff mode.</p>
+
+              <div class="api-section-label">Activate</div>
+              <div class="api-call">
+                <div class="api-call-row">
+                  <span class="api-method method-emit">EMIT</span>
+                  <span class="api-name">camera.setMode</span>
+                </div>
+                <div class="api-payload">{ "action": "camera.setMode",
+  "mode": "unitView" }</div>
+              </div>
+
+              <div class="api-section-label">Filter Units</div>
+              <div class="api-call">
+                <div class="api-call-row">
+                  <span class="api-method method-emit">EMIT</span>
+                  <span class="api-name">units.applyFilter</span>
+                </div>
+                <div class="api-payload">{ "action": "units.applyFilter",
+  "availability": "available",
+  "priceMin": 400000,
+  "priceMax": 900000,
+  "bedrooms": [1, 2],
+  "floors": [3, 4, 5, 6] }</div>
+              </div>
+
+              <div class="api-section-label">Select Unit</div>
+              <div class="api-call">
+                <div class="api-call-row">
+                  <span class="api-method method-emit">EMIT</span>
+                  <span class="api-name">units.selectUnit</span>
+                </div>
+                <div class="api-payload">{ "action": "units.selectUnit",
+  "unitId": "U-0304",
+  "highlight": true }</div>
+              </div>
+              <div class="api-call">
+                <div class="api-call-row">
+                  <span class="api-method method-event">EVENT</span>
+                  <span class="api-name">units.unitClicked</span>
+                </div>
+                <div class="api-desc">User clicks a unit in UE5 viewport — UE5 notifies Vue</div>
+                <div class="api-payload">{ "event": "units.unitClicked",
+  "unitId": "U-0304",
+  "floor": 3,
+  "bedrooms": 2,
+  "status": "available" }</div>
+              </div>
+
+              <div class="api-section-label">Clear Filter</div>
+              <div class="api-call">
+                <div class="api-call-row">
+                  <span class="api-method method-emit">EMIT</span>
+                  <span class="api-name">units.clearFilter</span>
+                </div>
+                <div class="api-payload">{ "action": "units.clearFilter" }</div>
+              </div>
+
+              <div class="transition-note">
+                <span>↔</span> Can activate Floor Cutoff on unit select
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- WALKING MODE -->
+        <div class="mode-card" id="card-walk" style="--node-color: var(--walk)" onclick="toggleCard('walk')">
+          <div class="mode-card-header">
+            <div class="mode-icon" style="background:rgba(139,92,246,0.12);">🚶</div>
+            <div>
+              <div class="mode-name">Walking Mode</div>
+              <div class="mode-subtitle">Street-level exploration</div>
+            </div>
+            <span class="mode-expand-icon">›</span>
+          </div>
+          <div class="mode-card-body">
+            <div class="mode-card-inner">
+              <p class="mode-desc">First-person street-level navigation around the building exterior. Equivalent to Google Street View. The user controls movement via arrow keys or on-screen controls.</p>
+
+              <div class="api-section-label">Activate</div>
+              <div class="api-call">
+                <div class="api-call-row">
+                  <span class="api-method method-emit">EMIT</span>
+                  <span class="api-name">camera.setMode</span>
+                </div>
+                <div class="api-payload">{ "action": "camera.setMode",
+  "mode": "walk",
+  "spawnPoint": "entrance_north",
+  "eyeHeight": 170 }</div>
+              </div>
+
+              <div class="api-section-label">Teleport to Point</div>
+              <div class="api-call">
+                <div class="api-call-row">
+                  <span class="api-method method-emit">EMIT</span>
+                  <span class="api-name">walk.teleport</span>
+                </div>
+                <div class="api-payload">{ "action": "walk.teleport",
+  "spawnPoint": "lobby",
+  "facingYaw": 180.0 }</div>
+              </div>
+
+              <div class="api-section-label">Input Passthrough</div>
+              <div class="api-call">
+                <div class="api-call-row">
+                  <span class="api-method method-emit">EMIT</span>
+                  <span class="api-name">walk.move</span>
+                </div>
+                <div class="api-desc">For virtual joystick/button UI controls</div>
+                <div class="api-payload">{ "action": "walk.move",
+  "direction": "forward",
+  "speed": 1.0 }</div>
+              </div>
+
+              <div class="api-section-label">Response</div>
+              <div class="api-call">
+                <div class="api-call-row">
+                  <span class="api-method method-event">EVENT</span>
+                  <span class="api-name">walk.positionUpdate</span>
+                </div>
+                <div class="api-desc">UE5 streams position for minimap sync</div>
+                <div class="api-payload">{ "event": "walk.positionUpdate",
+  "x": 1240.5,
+  "y": 330.0,
+  "yaw": 92.3 }</div>
+              </div>
+
+              <div class="transition-note">
+                <span>↔</span> Can transition to: Orbit, POI
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- POI MODE -->
+        <div class="mode-card" id="card-poi" style="--node-color: var(--poi)" onclick="toggleCard('poi')">
+          <div class="mode-card-header">
+            <div class="mode-icon" style="background:rgba(239,68,68,0.12);">🗺️</div>
+            <div>
+              <div class="mode-name">POI Mode</div>
+              <div class="mode-subtitle">Aerial points of interest</div>
+            </div>
+            <span class="mode-expand-icon">›</span>
+          </div>
+          <div class="mode-card-body">
+            <div class="mode-card-inner">
+              <p class="mode-desc">Camera ascends above the clouds and looks straight down — a Google Maps-style aerial view. Shows nearby points of interest: schools, transit, shops, parks annotated around the building.</p>
+
+              <div class="api-section-label">Activate</div>
+              <div class="api-call">
+                <div class="api-call-row">
+                  <span class="api-method method-emit">EMIT</span>
+                  <span class="api-name">camera.setMode</span>
+                </div>
+                <div class="api-payload">{ "action": "camera.setMode",
+  "mode": "poi",
+  "altitude": 80000,
+  "transitionDuration": 2.5 }</div>
+              </div>
+
+              <div class="api-section-label">Toggle POI Categories</div>
+              <div class="api-call">
+                <div class="api-call-row">
+                  <span class="api-method method-emit">EMIT</span>
+                  <span class="api-name">poi.setCategories</span>
+                </div>
+                <div class="api-payload">{ "action": "poi.setCategories",
+  "visible": [
+    "transit",
+    "schools",
+    "parks",
+    "shopping",
+    "restaurants"
+  ] }</div>
+              </div>
+
+              <div class="api-section-label">Highlight POI</div>
+              <div class="api-call">
+                <div class="api-call-row">
+                  <span class="api-method method-emit">EMIT</span>
+                  <span class="api-name">poi.highlight</span>
+                </div>
+                <div class="api-payload">{ "action": "poi.highlight",
+  "poiId": "subway_king_st",
+  "zoomTo": true }</div>
+              </div>
+
+              <div class="api-section-label">POI Click Event</div>
+              <div class="api-call">
+                <div class="api-call-row">
+                  <span class="api-method method-event">EVENT</span>
+                  <span class="api-name">poi.markerClicked</span>
+                </div>
+                <div class="api-desc">User clicks a POI marker in the viewport</div>
+                <div class="api-payload">{ "event": "poi.markerClicked",
+  "poiId": "subway_king_st",
+  "category": "transit",
+  "name": "King St Station",
+  "distanceM": 320 }</div>
+              </div>
+
+              <div class="transition-note">
+                <span>↔</span> Can transition to: Orbit, Walking
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FLOOR CUTOFF MODE -->
+        <div class="mode-card" id="card-floor" style="--node-color: var(--floor); grid-column: span 2;" onclick="toggleCard('floor')">
+          <div class="mode-card-header">
+            <div class="mode-icon" style="background:rgba(6,182,212,0.12);">✂️</div>
+            <div>
+              <div class="mode-name">Floor Cutoff Mode</div>
+              <div class="mode-subtitle">Sub-mode of Unit View — removes upper floors to reveal interior</div>
+            </div>
+            <span class="mode-expand-icon">›</span>
+          </div>
+          <div class="mode-card-body">
+            <div class="mode-card-inner">
+              <p class="mode-desc">Activated when a user selects a specific unit in Unit View Mode. The building geometry above the selected floor is clipped/hidden, exposing the floor plan and interior space of the unit. Deactivated by exiting unit selection.</p>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div>
+                  <div class="api-section-label">Activate (on unit select)</div>
+                  <div class="api-call">
+                    <div class="api-call-row">
+                      <span class="api-method method-emit">EMIT</span>
+                      <span class="api-name">building.setFloorCutoff</span>
+                    </div>
+                    <div class="api-payload">{ "action": "building.setFloorCutoff",
+  "enabled": true,
+  "floor": 3,
+  "unitId": "U-0304",
+  "animateCutoff": true,
+  "cutoffDuration": 1.2 }</div>
+                  </div>
+
+                  <div class="api-section-label" style="margin-top:8px">Adjust cutoff level</div>
+                  <div class="api-call">
+                    <div class="api-call-row">
+                      <span class="api-method method-emit">EMIT</span>
+                      <span class="api-name">building.setCutoffFloor</span>
+                    </div>
+                    <div class="api-payload">{ "action": "building.setCutoffFloor",
+  "floor": 5 }</div>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="api-section-label">Deactivate</div>
+                  <div class="api-call">
+                    <div class="api-call-row">
+                      <span class="api-method method-emit">EMIT</span>
+                      <span class="api-name">building.setFloorCutoff</span>
+                    </div>
+                    <div class="api-payload">{ "action": "building.setFloorCutoff",
+  "enabled": false }</div>
+                  </div>
+
+                  <div class="api-section-label" style="margin-top:8px">Response</div>
+                  <div class="api-call">
+                    <div class="api-call-row">
+                      <span class="api-method method-listen">LISTEN</span>
+                      <span class="api-name">building.cutoffReady</span>
+                    </div>
+                    <div class="api-desc">UE5 confirms cutoff animation complete</div>
+                    <div class="api-payload">{ "event": "building.cutoffReady",
+  "floor": 3,
+  "unitId": "U-0304",
+  "status": "visible" }</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="transition-note" style="margin-top:4px;">
+                <span>⚠️</span> Sub-mode: only active inside Unit View Mode. Exits when unitId is deselected or mode changes.
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /modes-grid -->
+    </div><!-- /state-machine -->
+
+    <!-- Transition Table -->
+    <p class="section-title">// Mode Transition Matrix</p>
+    <table class="transition-table">
+      <thead>
+        <tr>
+          <th>From</th>
+          <th></th>
+          <th>To</th>
+          <th>Trigger</th>
+          <th>API Call Required</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="from-badge" style="background:rgba(100,116,139,0.15);color:var(--init)">INIT</span></td>
+          <td class="arrow-cell">→</td>
+          <td><span class="from-badge" style="background:rgba(245,158,11,0.12);color:var(--orbit)">ORBIT</span></td>
+          <td>App loads</td>
+          <td><code style="font-size:11px;color:var(--accent)">app.init</code> → auto-transition</td>
+          <td>Default mode on startup</td>
+        </tr>
+        <tr>
+          <td><span class="from-badge" style="background:rgba(245,158,11,0.12);color:var(--orbit)">ORBIT</span></td>
+          <td class="arrow-cell">→</td>
+          <td><span class="from-badge" style="background:rgba(16,185,129,0.12);color:var(--unit)">UNIT VIEW</span></td>
+          <td>User clicks "View Units" button</td>
+          <td><code style="font-size:11px;color:var(--accent)">camera.setMode { mode: "unitView" }</code></td>
+          <td>Camera adjusts to building overview angle</td>
+        </tr>
+        <tr>
+          <td><span class="from-badge" style="background:rgba(245,158,11,0.12);color:var(--orbit)">ORBIT</span></td>
+          <td class="arrow-cell">→</td>
+          <td><span class="from-badge" style="background:rgba(139,92,246,0.12);color:var(--walk)">WALKING</span></td>
+          <td>User clicks "Street View" button</td>
+          <td><code style="font-size:11px;color:var(--accent)">camera.setMode { mode: "walk" }</code></td>
+          <td>Spawns at default entrance point</td>
+        </tr>
+        <tr>
+          <td><span class="from-badge" style="background:rgba(245,158,11,0.12);color:var(--orbit)">ORBIT</span></td>
+          <td class="arrow-cell">→</td>
+          <td><span class="from-badge" style="background:rgba(239,68,68,0.12);color:var(--poi)">POI</span></td>
+          <td>User clicks "Area Map" button</td>
+          <td><code style="font-size:11px;color:var(--accent)">camera.setMode { mode: "poi" }</code></td>
+          <td>Camera ascends with cinematic transition</td>
+        </tr>
+        <tr>
+          <td><span class="from-badge" style="background:rgba(16,185,129,0.12);color:var(--unit)">UNIT VIEW</span></td>
+          <td class="arrow-cell">→</td>
+          <td><span class="from-badge" style="background:rgba(6,182,212,0.12);color:var(--floor)">FLOOR CUTOFF</span></td>
+          <td>User selects a unit</td>
+          <td><code style="font-size:11px;color:var(--accent)">building.setFloorCutoff { enabled: true, floor, unitId }</code></td>
+          <td>Sub-mode; Unit View stays active</td>
+        </tr>
+        <tr>
+          <td><span class="from-badge" style="background:rgba(6,182,212,0.12);color:var(--floor)">FLOOR CUTOFF</span></td>
+          <td class="arrow-cell">→</td>
+          <td><span class="from-badge" style="background:rgba(16,185,129,0.12);color:var(--unit)">UNIT VIEW</span></td>
+          <td>User deselects unit or clicks back</td>
+          <td><code style="font-size:11px;color:var(--accent)">building.setFloorCutoff { enabled: false }</code></td>
+          <td>Building geometry restores</td>
+        </tr>
+        <tr>
+          <td><span class="from-badge" style="background:rgba(16,185,129,0.12);color:var(--unit)">UNIT VIEW</span></td>
+          <td class="arrow-cell">→</td>
+          <td><span class="from-badge" style="background:rgba(245,158,11,0.12);color:var(--orbit)">ORBIT</span></td>
+          <td>User clicks "Back" / mode toggle</td>
+          <td><code style="font-size:11px;color:var(--accent)">camera.setMode { mode: "orbit" }</code></td>
+          <td>Resets filters; disables floor cutoff</td>
+        </tr>
+        <tr>
+          <td><span class="from-badge" style="background:rgba(139,92,246,0.12);color:var(--walk)">WALKING</span></td>
+          <td class="arrow-cell">→</td>
+          <td><span class="from-badge" style="background:rgba(239,68,68,0.12);color:var(--poi)">POI</span></td>
+          <td>User clicks "View Area Map"</td>
+          <td><code style="font-size:11px;color:var(--accent)">camera.setMode { mode: "poi" }</code></td>
+          <td>Camera lifts from street to aerial</td>
+        </tr>
+        <tr>
+          <td><span class="from-badge" style="background:rgba(139,92,246,0.12);color:var(--walk)">WALKING</span></td>
+          <td class="arrow-cell">→</td>
+          <td><span class="from-badge" style="background:rgba(245,158,11,0.12);color:var(--orbit)">ORBIT</span></td>
+          <td>User clicks "Orbit View"</td>
+          <td><code style="font-size:11px;color:var(--accent)">camera.setMode { mode: "orbit" }</code></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td><span class="from-badge" style="background:rgba(239,68,68,0.12);color:var(--poi)">POI</span></td>
+          <td class="arrow-cell">→</td>
+          <td><span style="color:var(--muted);font-size:12px;">Any</span></td>
+          <td>User clicks a mode button</td>
+          <td><code style="font-size:11px;color:var(--accent)">camera.setMode { mode: "..." }</code></td>
+          <td>Camera descends back to scene level</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Global Events -->
+    <p class="section-title">// Global / Cross-Mode API Calls</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:48px;">
+
+      <div class="api-call">
+        <div class="api-call-row">
+          <span class="api-method method-emit">EMIT</span>
+          <span class="api-name">app.setLanguage</span>
+        </div>
+        <div class="api-desc">Change UI language across all modes</div>
+        <div class="api-payload">{ "action": "app.setLanguage",
+  "locale": "fr-CA" }</div>
+      </div>
+
+      <div class="api-call">
+        <div class="api-call-row">
+          <span class="api-method method-emit">EMIT</span>
+          <span class="api-name">app.setQuality</span>
+        </div>
+        <div class="api-desc">Adjust render quality / streaming bitrate hint</div>
+        <div class="api-payload">{ "action": "app.setQuality",
+  "preset": "high" }</div>
+      </div>
+
+      <div class="api-call">
+        <div class="api-call-row">
+          <span class="api-method method-emit">EMIT</span>
+          <span class="api-name">app.setTimeOfDay</span>
+        </div>
+        <div class="api-desc">Adjust sun/sky lighting across all modes</div>
+        <div class="api-payload">{ "action": "app.setTimeOfDay",
+  "hour": 14.5 }</div>
+      </div>
+
+      <div class="api-call">
+        <div class="api-call-row">
+          <span class="api-method method-event">EVENT</span>
+          <span class="api-name">app.error</span>
+        </div>
+        <div class="api-desc">UE5 reports a runtime error to Vue</div>
+        <div class="api-payload">{ "event": "app.error",
+  "code": "UNIT_NOT_FOUND",
+  "unitId": "U-9999",
+  "message": "Unit does not exist" }</div>
+      </div>
+
+      <div class="api-call">
+        <div class="api-call-row">
+          <span class="api-method method-emit">EMIT</span>
+          <span class="api-name">app.reset</span>
+        </div>
+        <div class="api-desc">Hard reset — return to INIT state</div>
+        <div class="api-payload">{ "action": "app.reset" }</div>
+      </div>
+
+      <div class="api-call">
+        <div class="api-call-row">
+          <span class="api-method method-listen">LISTEN</span>
+          <span class="api-name">camera.modeChanged</span>
+        </div>
+        <div class="api-desc">Fired after every successful mode change</div>
+        <div class="api-payload">{ "event": "camera.modeChanged",
+  "mode": "walk",
+  "previousMode": "orbit",
+  "status": "active" }</div>
+      </div>
+
+    </div>
+
+    <p style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);padding-bottom:40px;">
+      ArchViz API Flow v2.0 · All messages transported via PixelStream emitUIInteraction() / addResponseEventListener()
+    </p>
+
+  </main>
+</div>
+
+<script>
+  function toggleCard(id) {
+    const card = document.getElementById('card-' + id);
+    const isActive = card.classList.contains('active');
+    // close all
+    document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('active'));
+    if (!isActive) card.classList.add('active');
+  }
+
+  function toggleInit() {
+    const panel = document.getElementById('init-panel');
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  }
+
+  function scrollToCard(id) {
+    const card = document.getElementById('card-' + id);
+    if (!card) return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // open it
+    document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('active'));
+    card.classList.add('active');
+  }
+</script>
+
+</body>
+</html>
